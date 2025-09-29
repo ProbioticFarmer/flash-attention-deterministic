@@ -533,6 +533,21 @@ mha_fwd(at::Tensor &q,         // batch_size x seqlen_q x num_heads x round_mult
         softmax_lse.fill_(std::numeric_limits<float>::infinity());
     }
 
+    bool fa2_det = false;
+    if (const char* env = std::getenv("FA2_DETERMINISTIC")) {
+        fa2_det = (std::string(env) == "1");
+    }
+    if (fa2_det && params.num_splits > 1) {
+        if (out_accum.defined() && softmax_lse_accum.defined()) {
+            at::Tensor lse_total = at::logsumexp(softmax_lse_accum, /dim=/0);
+            softmax_lse.copy_(lse_total);
+            at::Tensor weights = at::exp(softmax_lse_accum - lse_total.unsqueeze(0));
+            at::Tensor weighted = weights.unsqueeze(-1) * out_accum;
+            at::Tensor out_sum = weighted.sum(/dim=/0);
+            out.copy_(out_sum.permute({0, 2, 1, 3}).to(out.dtype()));
+        }
+    }
+
     if (seqlenq_ngroups_swapped) {
         out = out.transpose(1, 2).reshape({batch_size, 1, num_heads_k * seqlen_q, head_size});
         q = q.transpose(1, 2).reshape({batch_size, 1, num_heads_k * seqlen_q, head_size});
@@ -771,6 +786,21 @@ mha_varlen_fwd(at::Tensor &q,  // total_q x num_heads x head_size, total_q := \s
         // If seqlen_k == 0, then we have an empty tensor. We need to set the output to 0.
         out.zero_();
         softmax_lse.fill_(std::numeric_limits<float>::infinity());
+    }
+
+    bool fa2_det = false;
+    if (const char* env = std::getenv("FA2_DETERMINISTIC")) {
+        fa2_det = (std::string(env) == "1");
+    }
+    if (fa2_det && params.num_splits > 1) {
+        if (out_accum.defined() && softmax_lse_accum.defined()) {
+            at::Tensor lse_total = at::logsumexp(softmax_lse_accum, /dim=/0);
+            softmax_lse.copy_(lse_total);
+            at::Tensor weights = at::exp(softmax_lse_accum - lse_total.unsqueeze(0));
+            at::Tensor weighted = weights.unsqueeze(-1) * out_accum;
+            at::Tensor out_sum = weighted.sum(/dim=/0);
+            out.copy_(out_sum.permute({0, 2, 1, 3}).to(out.dtype()));
+        }
     }
 
     if (seqlenq_ngroups_swapped) {
@@ -1485,6 +1515,21 @@ mha_fwd_kvcache(at::Tensor &q,                 // batch_size x seqlen_q x num_he
     // Only split kernel supports appending to KV cache, or indexing to the cache with cache_batch_idx,
     // or paged KV cache
     run_mha_fwd(params, stream, /*force_split_kernel=*/k_.has_value() || cache_batch_idx_.has_value() || paged_KV);
+
+    bool fa2_det = false;
+    if (const char* env = std::getenv("FA2_DETERMINISTIC")) {
+        fa2_det = (std::string(env) == "1");
+    }
+    if (fa2_det && params.num_splits > 1) {
+        if (out_accum.defined() && softmax_lse_accum.defined()) {
+            at::Tensor lse_total = at::logsumexp(softmax_lse_accum, dim=0);
+            softmax_lse.copy_(lse_total);
+            at::Tensor weights = at::exp(softmax_lse_accum - lse_total.unsqueeze(0));
+            at::Tensor weighted = weights.unsqueeze(-1) * out_accum;
+            at::Tensor out_sum = weighted.sum(dim=0);
+            out.copy_(out_sum.permute({0, 2, 1, 3}).to(out.dtype()));
+        }
+    }
 
     if (head_size_og % 8 != 0) {
         out = out.index({"...", torch::indexing::Slice(torch::indexing::None, head_size_og)});
