@@ -324,7 +324,7 @@ std::tuple<at::Tensor, at::Tensor> set_params_splitkv(Flash_fwd_params &params, 
     if (const char* env_det = std::getenv("FA2_DETERMINISTIC")) {
         fa2_det = (std::string(env_det) == "1");
     }
-    bool used_fixed_split = false;
+    // bool used_fixed_split = false;
 
     if (p_dropout == 0.0f && fixed_split_tokens > 0 && params.num_splits < 1 && fa2_det) {
         int blocks_per_split = (fixed_split_tokens + block_n - 1) / block_n;
@@ -332,7 +332,7 @@ std::tuple<at::Tensor, at::Tensor> set_params_splitkv(Flash_fwd_params &params, 
 
         int computed_splits = (num_n_blocks + blocks_per_split - 1) / blocks_per_split;
         params.num_splits = std::max(1, computed_splits);
-        used_fixed_split = true;
+        // used_fixed_split = true;
     }
 
     if (p_dropout == 0.0f) {  // SplitKV is not implemented for dropout
@@ -353,7 +353,7 @@ std::tuple<at::Tensor, at::Tensor> set_params_splitkv(Flash_fwd_params &params, 
     //     "[FA2] set_params_splitkv: B=%d Hq=%d D=%d max_k=%d block_n%d n_blocks=%d fixed_tokens=%d used_fixed=%d -> num_splits=%d p_drop%.1f\n",
     //     batch_size, num_heads, head_size, max_seqlen_k, block_n, num_n_blocks, fixed_split_tokens, used_fixed_split ? 1 : 0, params.num_splits, p_dropout
     // );
-    fflush(stdout);
+    // fflush(stdout);
 
     return std::make_tuple(softmax_lse_accum, out_accum);
 }
@@ -539,11 +539,11 @@ mha_fwd(at::Tensor &q,         // batch_size x seqlen_q x num_heads x round_mult
     }
     if (fa2_det && params.num_splits > 1) {
         if (out_accum.defined() && softmax_lse_accum.defined()) {
-            at::Tensor lse_total = at::logsumexp(softmax_lse_accum, /dim=/0);
+            at::Tensor lse_total = at::logsumexp(softmax_lse_accum, 0);
             softmax_lse.copy_(lse_total);
             at::Tensor weights = at::exp(softmax_lse_accum - lse_total.unsqueeze(0));
             at::Tensor weighted = weights.unsqueeze(-1) * out_accum;
-            at::Tensor out_sum = weighted.sum(/dim=/0);
+            at::Tensor out_sum = weighted.sum(0);
             out.copy_(out_sum.permute({0, 2, 1, 3}).to(out.dtype()));
         }
     }
@@ -794,11 +794,11 @@ mha_varlen_fwd(at::Tensor &q,  // total_q x num_heads x head_size, total_q := \s
     }
     if (fa2_det && params.num_splits > 1) {
         if (out_accum.defined() && softmax_lse_accum.defined()) {
-            at::Tensor lse_total = at::logsumexp(softmax_lse_accum, /dim=/0);
+            at::Tensor lse_total = at::logsumexp(softmax_lse_accum, 0);
             softmax_lse.copy_(lse_total);
             at::Tensor weights = at::exp(softmax_lse_accum - lse_total.unsqueeze(0));
             at::Tensor weighted = weights.unsqueeze(-1) * out_accum;
-            at::Tensor out_sum = weighted.sum(/dim=/0);
+            at::Tensor out_sum = weighted.sum(0);
             out.copy_(out_sum.permute({0, 2, 1, 3}).to(out.dtype()));
         }
     }
@@ -1522,11 +1522,11 @@ mha_fwd_kvcache(at::Tensor &q,                 // batch_size x seqlen_q x num_he
     }
     if (fa2_det && params.num_splits > 1) {
         if (out_accum.defined() && softmax_lse_accum.defined()) {
-            at::Tensor lse_total = at::logsumexp(softmax_lse_accum, dim=0);
+            at::Tensor lse_total = at::logsumexp(softmax_lse_accum, 0);
             softmax_lse.copy_(lse_total);
             at::Tensor weights = at::exp(softmax_lse_accum - lse_total.unsqueeze(0));
             at::Tensor weighted = weights.unsqueeze(-1) * out_accum;
-            at::Tensor out_sum = weighted.sum(dim=0);
+            at::Tensor out_sum = weighted.sum(0);
             out.copy_(out_sum.permute({0, 2, 1, 3}).to(out.dtype()));
         }
     }
