@@ -349,10 +349,10 @@ std::tuple<at::Tensor, at::Tensor> set_params_splitkv(Flash_fwd_params &params, 
         TORCH_CHECK(params.num_splits <= 128, "num_splits > 128 not supported");
     }
 
-    printf(
-        "[FA2] set_params_splitkv: B=%d Hq=%d D=%d max_k=%d block_n%d n_blocks=%d fixed_tokens=%d used_fixed=%d -> num_splits=%d p_drop%.1f\n",
-        batch_size, num_heads, head_size, max_seqlen_k, block_n, num_n_blocks, fixed_split_tokens, used_fixed_split ? 1 : 0, params.num_splits, p_dropout
-    );
+    // printf(
+    //     "[FA2] set_params_splitkv: B=%d Hq=%d D=%d max_k=%d block_n%d n_blocks=%d fixed_tokens=%d used_fixed=%d -> num_splits=%d p_drop%.1f\n",
+    //     batch_size, num_heads, head_size, max_seqlen_k, block_n, num_n_blocks, fixed_split_tokens, used_fixed_split ? 1 : 0, params.num_splits, p_dropout
+    // );
     fflush(stdout);
 
     return std::make_tuple(softmax_lse_accum, out_accum);
