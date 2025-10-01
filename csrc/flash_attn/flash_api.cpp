@@ -3,6 +3,7 @@
  ******************************************************************************/
 
 // Include these 2 headers instead of torch/extension.h since we don't need all of the torch headers.
+#include <string>
 #include <torch/python.h>
 #include <torch/nn/functional.h>
 #include <c10/cuda/CUDAGuard.h>
@@ -156,6 +157,13 @@ void set_params_fprop(Flash_fwd_params &params,
 
     params.unpadded_lse = unpadded_lse;
     params.seqlenq_ngroups_swapped = seqlenq_ngroups_swapped;
+
+    // [Patch] pass in deterministic flag
+    bool fa2_det = false;
+    if (const char* env = std::getenv("FA2_DETERMINISTIC")) {
+        fa2_det = (std::string(env) == "1");
+    }
+    params.deterministic = fa2_det;
 }
 
 void set_params_dgrad(Flash_bwd_params &params,

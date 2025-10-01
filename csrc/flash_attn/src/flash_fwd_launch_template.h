@@ -107,8 +107,16 @@ void run_flash_splitkv_fwd(Flash_fwd_params &params, cudaStream_t stream) {
     dim3 grid(num_m_block, params.num_splits > 1 ? params.num_splits : params.b, params.num_splits > 1 ? params.b * params.h : params.h);
     const bool is_even_MN = params.cu_seqlens_q == nullptr && params.cu_seqlens_k == nullptr && params.seqlen_k % Kernel_traits::kBlockN == 0 && params.seqlen_q % Kernel_traits::kBlockM == 0;
     const bool is_even_K = params.d == Kernel_traits::kHeadDim;
-    BOOL_SWITCH(is_even_MN, IsEvenMNConst, [&] {
-        EVENK_SWITCH(is_even_K, IsEvenKConst, [&] {
+
+    // [Patch] disable even fast paths
+    const bool det = params.deterministic;
+    const bool is_even_MN_used = det ? false : is_even_MN;
+    const bool is_even_K_used = det ? false : is_even_K;
+
+    // BOOL_SWITCH(is_even_MN, IsEvenMNConst, [&] {
+    BOOL_SWITCH(is_even_MN_used, IsEvenMNConst, [&] {
+        // EVENK_SWITCH(is_even_K, IsEvenKConst, [&] {
+        EVENK_SWITCH(is_even_K_used, IsEvenKConst, [&] {
             LOCAL_SWITCH((params.window_size_left >= 0 || params.window_size_right >= 0) && !Is_causal, Is_local, [&] {
                 BOOL_SWITCH(params.num_splits > 1, Split, [&] {
                     BOOL_SWITCH(params.knew_ptr != nullptr, Append_KV, [&] {
@@ -133,7 +141,8 @@ void run_flash_splitkv_fwd(Flash_fwd_params &params, cudaStream_t stream) {
             });
         });
     });
-    if (params.num_splits > 1) {
+    // [Patch] disable device combine to use host combine only
+    if (params.num_splits > 1 && !params.deterministic) {
         // We want kBlockM to be as small as possible for more parallelism.
         // With 128 threads we can load 512 elements at a time, so if headdim is divisible by 128, kBlockM = 4.
         // If headdim is divisible by 64, then we set kBlockM = 8, etc.
