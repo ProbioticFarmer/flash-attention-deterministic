@@ -6,21 +6,6 @@
 
 namespace FLASH_NAMESPACE {
     template <typename scalar_t>
-    __device__ inline float to_float(scalar_t v) {
-        return static_cast<float>(v);
-    }
-
-    template <>
-    __device__ inline float to_float<at::Half>(at::Half v) {
-        return __half2float(v);
-    }
-
-    template <>
-    __device__ inline float to_float<at::BFloat16>(at::BFloat16 v) {
-        return __bfloat162float(v);
-    }
-
-    template <typename scalar_t>
     __device__ inline scalar_t to_scalar(float v) {
         return static_cast<scalar_t>(v);
     }
@@ -37,7 +22,7 @@ namespace FLASH_NAMESPACE {
 
     template <typename scalar_t>
     __global__ void splitkv_single_cta_kernel(
-        scalar_t* __restrict__ out, const scalar_t* __restrict__ out_accum,
+        scalar_t* __restrict__ out, const float* __restrict__ out_accum,
         float* __restrict__ softmax_lse, const float* __restrict__ softmax_lse_accum,
         int num_splits, int batch, int num_heads, int seqlen_q, int head_size, int head_size_accum,
         int64_t out_stride_b, int64_t out_stride_h, int64_t out_stride_m,
@@ -79,7 +64,7 @@ namespace FLASH_NAMESPACE {
             const float inv_sum = 1.f / sum_exp;
             softmax_lse[b * out_stride_b + h * out_stride_h + m * out_stride_m] = total_lse;
 
-            const scalar_t* accum_ptr = out_accum + b * accum_stride_b + h * accum_stride_h + m * accum_stride_m;
+            const float* accum_ptr = out_accum + b * accum_stride_b + h * accum_stride_h + m * accum_stride_m;
 
             // compute partial output value across splits from out_accum
             // compute partial weight across splits from partial sum and total sum
@@ -88,9 +73,7 @@ namespace FLASH_NAMESPACE {
                 float acc = 0.f;
                 for (int s = 0; s < num_splits; ++s) {
                     const float weight = expf(lse_accum_ptr[s * lse_stride_split] - max_val) * inv_sum; // partial_sum_split / sum of partial sums
-                    const float value = to_float<scalar_t>(
-                        accum_ptr[s * accum_stride_split + d * accum_stride_d]
-                    );
+                    const float value = accum_ptr[s * accum_stride_split + d * accum_stride_d];
                     acc += weight * value;
                 }
                 out_ptr[d] = to_scalar<scalar_t>(acc);
@@ -99,7 +82,7 @@ namespace FLASH_NAMESPACE {
     }
 
     void run_splitkv_single_cta_combine(
-        const at::Tensor& out_accum, // [num_splits, batch, num_heads, seqlen_q, head_dim_round]
+        const at::Tensor& out_accum, // float [num_splits, batch, num_heads, seqlen_q, head_dim_round]
         const at::Tensor& softmax_lse_accum, // [num_splits, batch, num_heads, seqlen_q]
         at::Tensor& out, // attn @ V [batch, num_heads, seqlen_q, head_dim]
         at::Tensor& softmax_lse // [batch, num_heads, seqlen_q]
@@ -130,10 +113,10 @@ namespace FLASH_NAMESPACE {
         auto stream = at::cuda::getCurrentCUDAStream();
 
         AT_DISPATCH_FLOATING_TYPES_AND2(
-            at::kHalf, at::kBFloat16, out_accum.scalar_type(),
+            at::kHalf, at::kBFloat16, out.scalar_type(),
             "splitkv_single_cta_combine", [&] {
                 splitkv_single_cta_kernel<scalar_t><<<grid, block, 0, stream>>>(
-                    out.data_ptr<scalar_t>(), out_accum.data_ptr<scalar_t>(),
+                    out.data_ptr<scalar_t>(), out_accum.data_ptr<float>(),
                     softmax_lse.data_ptr<float>(), softmax_lse_accum.data_ptr<float>(),
                     num_splits, batch, num_heads, seqlen_q, head_size, head_size_accum,
                     out.stride(0), out.stride(1), out.stride(2),
