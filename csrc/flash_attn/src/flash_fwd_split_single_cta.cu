@@ -3,6 +3,7 @@
 #include <ATen/cuda/CUDAContext.h>
 #include <c10/cuda/CUDAGuard.h>
 #include <cuda_fp16.h>
+#include <cuda_bf16.h>
 
 namespace FLASH_NAMESPACE {
     template <typename scalar_t>
@@ -91,6 +92,10 @@ namespace FLASH_NAMESPACE {
         TORCH_CHECK(softmax_lse_accum.is_cuda(), "softmax_lse_accum must be on CUDA");
         TORCH_CHECK(out.is_cuda(), "out must be on CUDA");
         TORCH_CHECK(softmax_lse.is_cuda(), "softmax_lse must be on CUDA");
+
+        TORCH_CHECK(out_accum.scalar_type() == at::kFloat, "out_accum must be fp32");
+        TORCH_CHECK(softmax_lse.scalar_type() == at::kFloat, "softmax_lse must be fp32");
+        TORCH_CHECK(softmax_lse_accum.scalar_type() == at::kFloat, "softmax_lse_accum must be fp32");
 
         TORCH_CHECK(out_accum.dim() == 5, "out_accum must have shape [num_splits, batch, head, seqlen_q, head_dim_round]");
         TORCH_CHECK(softmax_lse_accum.dim() == 4, "softmax_lse_accum must have shape [num_splits, batch, heads, seqlen_q]");
