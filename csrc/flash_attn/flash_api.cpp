@@ -549,7 +549,7 @@ mha_fwd(at::Tensor &q,         // batch_size x seqlen_q x num_heads x round_mult
         static std::once_flag warned;
         std::call_once(warned, []() {
             std::cout << "[flash-attn] FA2 deterministic single-CTA combine active for split-k";
-        })
+        });
         run_splitkv_single_cta_combine(out_accum, softmax_lse_accum, out, softmax_lse);
         // if (out_accum.defined() && softmax_lse_accum.defined()) {
         //     at::Tensor lse_total = at::logsumexp(softmax_lse_accum, 0);
@@ -809,7 +809,7 @@ mha_varlen_fwd(at::Tensor &q,  // total_q x num_heads x head_size, total_q := \s
         static std::once_flag warned;
         std::call_once(warned, []() {
             std::cout << "[flash-attn] FA2 deterministic single-CTA combine active for split-k";
-        })
+        });
         run_splitkv_single_cta_combine(out_accum, softmax_lse_accum, out, softmax_lse);
         // if (out_accum.defined() && softmax_lse_accum.defined()) {
         //     at::Tensor lse_total = at::logsumexp(softmax_lse_accum, 0);
@@ -1542,7 +1542,7 @@ mha_fwd_kvcache(at::Tensor &q,                 // batch_size x seqlen_q x num_he
         static std::once_flag warned;
         std::call_once(warned, []() {
             std::cout << "[flash-attn] FA2 deterministic single-CTA combine active for split-k";
-        })
+        });
         run_splitkv_single_cta_combine(out_accum, softmax_lse_accum, out, softmax_lse);
         // if (out_accum.defined() && softmax_lse_accum.defined()) {
         //     at::Tensor lse_total = at::logsumexp(softmax_lse_accum, 0);
