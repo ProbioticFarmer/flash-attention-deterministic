@@ -546,14 +546,19 @@ mha_fwd(at::Tensor &q,         // batch_size x seqlen_q x num_heads x round_mult
         fa2_det = (std::string(env) == "1");
     }
     if (fa2_det && params.num_splits > 1) {
-        if (out_accum.defined() && softmax_lse_accum.defined()) {
-            at::Tensor lse_total = at::logsumexp(softmax_lse_accum, 0);
-            softmax_lse.copy_(lse_total);
-            at::Tensor weights = at::exp(softmax_lse_accum - lse_total.unsqueeze(0));
-            at::Tensor weighted = weights.unsqueeze(-1) * out_accum;
-            at::Tensor out_sum = weighted.sum(0);
-            out.copy_(out_sum.permute({0, 2, 1, 3}).to(out.dtype()));
-        }
+        static std::once_flag warned;
+        std::call_once(warned, []() {
+            std::cout << "[flash-attn] FA2 deterministic single-CTA combine active for split-k";
+        })
+        run_splitkv_single_cta_combine(out_accum, softmax_lse_accum, out, softmax_lse);
+        // if (out_accum.defined() && softmax_lse_accum.defined()) {
+        //     at::Tensor lse_total = at::logsumexp(softmax_lse_accum, 0);
+        //     softmax_lse.copy_(lse_total);
+        //     at::Tensor weights = at::exp(softmax_lse_accum - lse_total.unsqueeze(0));
+        //     at::Tensor weighted = weights.unsqueeze(-1) * out_accum;
+        //     at::Tensor out_sum = weighted.sum(0);
+        //     out.copy_(out_sum.permute({0, 2, 1, 3}).to(out.dtype()));
+        // }
     }
 
     if (seqlenq_ngroups_swapped) {
@@ -801,14 +806,19 @@ mha_varlen_fwd(at::Tensor &q,  // total_q x num_heads x head_size, total_q := \s
         fa2_det = (std::string(env) == "1");
     }
     if (fa2_det && params.num_splits > 1) {
-        if (out_accum.defined() && softmax_lse_accum.defined()) {
-            at::Tensor lse_total = at::logsumexp(softmax_lse_accum, 0);
-            softmax_lse.copy_(lse_total);
-            at::Tensor weights = at::exp(softmax_lse_accum - lse_total.unsqueeze(0));
-            at::Tensor weighted = weights.unsqueeze(-1) * out_accum;
-            at::Tensor out_sum = weighted.sum(0);
-            out.copy_(out_sum.permute({0, 2, 1, 3}).to(out.dtype()));
-        }
+        static std::once_flag warned;
+        std::call_once(warned, []() {
+            std::cout << "[flash-attn] FA2 deterministic single-CTA combine active for split-k";
+        })
+        run_splitkv_single_cta_combine(out_accum, softmax_lse_accum, out, softmax_lse);
+        // if (out_accum.defined() && softmax_lse_accum.defined()) {
+        //     at::Tensor lse_total = at::logsumexp(softmax_lse_accum, 0);
+        //     softmax_lse.copy_(lse_total);
+        //     at::Tensor weights = at::exp(softmax_lse_accum - lse_total.unsqueeze(0));
+        //     at::Tensor weighted = weights.unsqueeze(-1) * out_accum;
+        //     at::Tensor out_sum = weighted.sum(0);
+        //     out.copy_(out_sum.permute({0, 2, 1, 3}).to(out.dtype()));
+        // }
     }
 
     if (seqlenq_ngroups_swapped) {
@@ -1529,14 +1539,19 @@ mha_fwd_kvcache(at::Tensor &q,                 // batch_size x seqlen_q x num_he
         fa2_det = (std::string(env) == "1");
     }
     if (fa2_det && params.num_splits > 1) {
-        if (out_accum.defined() && softmax_lse_accum.defined()) {
-            at::Tensor lse_total = at::logsumexp(softmax_lse_accum, 0);
-            softmax_lse.copy_(lse_total);
-            at::Tensor weights = at::exp(softmax_lse_accum - lse_total.unsqueeze(0));
-            at::Tensor weighted = weights.unsqueeze(-1) * out_accum;
-            at::Tensor out_sum = weighted.sum(0);
-            out.copy_(out_sum.permute({0, 2, 1, 3}).to(out.dtype()));
-        }
+        static std::once_flag warned;
+        std::call_once(warned, []() {
+            std::cout << "[flash-attn] FA2 deterministic single-CTA combine active for split-k";
+        })
+        run_splitkv_single_cta_combine(out_accum, softmax_lse_accum, out, softmax_lse);
+        // if (out_accum.defined() && softmax_lse_accum.defined()) {
+        //     at::Tensor lse_total = at::logsumexp(softmax_lse_accum, 0);
+        //     softmax_lse.copy_(lse_total);
+        //     at::Tensor weights = at::exp(softmax_lse_accum - lse_total.unsqueeze(0));
+        //     at::Tensor weighted = weights.unsqueeze(-1) * out_accum;
+        //     at::Tensor out_sum = weighted.sum(0);
+        //     out.copy_(out_sum.permute({0, 2, 1, 3}).to(out.dtype()));
+        // }
     }
 
     if (head_size_og % 8 != 0) {
