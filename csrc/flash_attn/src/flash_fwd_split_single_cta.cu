@@ -97,52 +97,52 @@ namespace FLASH_NAMESPACE {
             }
         }
     }
-}
 
-void run_splitkv_single_cta_combine(
-    const at::Tensor& out_accum, // [num_splits, batch, num_heads, seqlen_q, head_dim_round]
-    const at::Tensor& softmax_lse_accum, // [num_splits, batch, num_heads, seqlen_q]
-    at::Tensor& out, // attn @ V [batch, num_heads, seqlen_q, head_dim]
-    at::Tensor& softmax_lse // [batch, num_heads, seqlen_q]
-) {
-    TORCH_CHECK(out_accum.is_cuda(), "out_accum must be on CUDA");
-    TORCH_CHECK(softmax_lse_accum.is_cuda(), "softmax_lse_accum must be on CUDA");
-    TORCH_CHECK(out.is_cuda(), "out must be on CUDA");
-    TORCH_CHECK(softmax_lse.is_cuda(), "softmax_lse must be on CUDA");
+    void run_splitkv_single_cta_combine(
+        const at::Tensor& out_accum, // [num_splits, batch, num_heads, seqlen_q, head_dim_round]
+        const at::Tensor& softmax_lse_accum, // [num_splits, batch, num_heads, seqlen_q]
+        at::Tensor& out, // attn @ V [batch, num_heads, seqlen_q, head_dim]
+        at::Tensor& softmax_lse // [batch, num_heads, seqlen_q]
+    ) {
+        TORCH_CHECK(out_accum.is_cuda(), "out_accum must be on CUDA");
+        TORCH_CHECK(softmax_lse_accum.is_cuda(), "softmax_lse_accum must be on CUDA");
+        TORCH_CHECK(out.is_cuda(), "out must be on CUDA");
+        TORCH_CHECK(softmax_lse.is_cuda(), "softmax_lse must be on CUDA");
 
-    TORCH_CHECK(out_accum.dim() == 5, "out_accum must have shape [num_splits, batch, head, seqlen_q, head_dim_round]");
-    TORCH_CHECK(softmax_lse_accum.dim() == 4, "softmax_lse_accum must have shape [num_splits, batch, heads, seqlen_q]");
-    
-    const int num_splits = out_accum.size(0);
-    const int batch = out_accum.size(1);
-    const int num_heads = out_accum.size(2);
-    const int seqlen_q = out_accum.size(3);
-    const int head_size_accum = out_accum.size(4);
-    const int head_size = out.size(-1);
+        TORCH_CHECK(out_accum.dim() == 5, "out_accum must have shape [num_splits, batch, head, seqlen_q, head_dim_round]");
+        TORCH_CHECK(softmax_lse_accum.dim() == 4, "softmax_lse_accum must have shape [num_splits, batch, heads, seqlen_q]");
+        
+        const int num_splits = out_accum.size(0);
+        const int batch = out_accum.size(1);
+        const int num_heads = out_accum.size(2);
+        const int seqlen_q = out_accum.size(3);
+        const int head_size_accum = out_accum.size(4);
+        const int head_size = out.size(-1);
 
-    if (num_splits == 0 || batch == 0 || num_heads == 0 || seqlen_q == 0) {
-        return;
-    }
-
-    constexpr int threads = 256;
-    const dim3 block(threads);
-    const dim3 grid(1);
-
-    auto stream = at::cuda::getCurrentCUDAStream();
-
-    AT_DISPATCH_FLOATING_TYPES_AND2(
-        at::kHalf, at::kBFloat16, out_accum.scalar_type(),
-        "splitkv_single_cta_combine", [&] {
-            splitkv_single_cta_kernel<scalar_t><<<grid, block, 0, stream>>>(
-                out.data_ptr<scalar_t>(), out_accum.data_ptr<scalar_t>(),
-                softmax_lse.data_ptr<float>(), softmax_lse_accum.data_ptr<float>(),
-                num_splits, batch, num_heads, seqlen_q, head_size, head_size_accum,
-                out.stride(0), out.stride(1), out.stride(2),
-                out_accum.stride(0), out_accum.stride(1), out_accum.stride(2), out_accum.stride(3), out_accum.stride(4),
-                softmax_lse_accum.stride(0), softmax_lse_accum.stride(1), softmax_lse_accum.stride(2), softmax_lse_accum.stride(3)
-            );
+        if (num_splits == 0 || batch == 0 || num_heads == 0 || seqlen_q == 0) {
+            return;
         }
-    );
 
-    C10_CUDA_KERNEL_LAUNCH_CHECK();
+        constexpr int threads = 256;
+        const dim3 block(threads);
+        const dim3 grid(1);
+
+        auto stream = at::cuda::getCurrentCUDAStream();
+
+        AT_DISPATCH_FLOATING_TYPES_AND2(
+            at::kHalf, at::kBFloat16, out_accum.scalar_type(),
+            "splitkv_single_cta_combine", [&] {
+                splitkv_single_cta_kernel<scalar_t><<<grid, block, 0, stream>>>(
+                    out.data_ptr<scalar_t>(), out_accum.data_ptr<scalar_t>(),
+                    softmax_lse.data_ptr<float>(), softmax_lse_accum.data_ptr<float>(),
+                    num_splits, batch, num_heads, seqlen_q, head_size, head_size_accum,
+                    out.stride(0), out.stride(1), out.stride(2),
+                    out_accum.stride(0), out_accum.stride(1), out_accum.stride(2), out_accum.stride(3), out_accum.stride(4),
+                    softmax_lse_accum.stride(0), softmax_lse_accum.stride(1), softmax_lse_accum.stride(2), softmax_lse_accum.stride(3)
+                );
+            }
+        );
+
+        C10_CUDA_KERNEL_LAUNCH_CHECK();
+    }
 } // namespace FLASH_NAMESPACE
