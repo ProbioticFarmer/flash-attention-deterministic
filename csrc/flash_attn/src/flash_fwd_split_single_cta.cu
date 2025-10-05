@@ -4,6 +4,7 @@
 #include <c10/cuda/CUDAGuard.h>
 #include <cuda_fp16.h>
 #include <cuda_bf16.h>
+#include <limits>
 
 namespace FLASH_NAMESPACE {
     template <typename scalar_t>
@@ -42,13 +43,14 @@ namespace FLASH_NAMESPACE {
             const float* lse_accum_ptr = softmax_lse_accum + b * lse_stride_b + h * lse_stride_h + m * lse_stride_m; // increment will traverse split index
 
             // compute max value across splits in softmax_lse_accum
-            float max_val = -CUDART_INF_F;
+            const float neg_inf = -std::numeric_limits<float>::infinity();
+            float max_val = neg_inf;
             for (int s = 0; s < num_splits; ++s) {
                 max_val = fmaxf(max_val, lse_accum_ptr[s * lse_stride_split]);
             }
 
             scalar_t* out_ptr = out + b * out_stride_b + h * out_stride_h + m * out_stride_m;
-            if (max_val == -CUDART_INF_F) {
+            if (max_val == neg_inf) {
                 softmax_lse[b * out_stride_b + h * out_stride_h + m * out_stride_m] = max_val;
                 for (int d = 0; d < head_size; ++d) {
                     out_ptr[d] = to_scalar<scalar_t>(0.f);
