@@ -27,9 +27,10 @@ namespace FLASH_NAMESPACE {
         scalar_t* __restrict__ out, const float* __restrict__ out_accum,
         float* __restrict__ softmax_lse, const float* __restrict__ softmax_lse_accum,
         int num_splits, int batch, int num_heads, int seqlen_q, int head_size, int head_size_accum,
-        int64_t out_stride_b, int64_t out_stride_h, int64_t out_stride_m,
+        int64_t out_stride_b, int64_t out_stride_m, int64_t out_stride_h,
         int64_t accum_stride_split, int64_t accum_stride_b, int64_t accum_stride_h, int64_t accum_stride_m, int64_t accum_stride_d,
-        int64_t lse_stride_split, int64_t lse_stride_b, int64_t lse_stride_h, int64_t lse_stride_m
+        int64_t lse_accum_stride_split, int64_t lse_accum_stride_b, int64_t lse_accum_stride_h, int64_t lse_accum_stride_m,
+        int64_t lse_stride_b, int64_t lse_stride_h, int64_t lse_stride_m
     ) {
         const int total_rows = batch * num_heads * seqlen_q;
         int row = threadIdx.x;
@@ -40,7 +41,7 @@ namespace FLASH_NAMESPACE {
             int h = tmp % num_heads; // head index
             int b = tmp / num_heads; // batch index
 
-            const float* lse_accum_ptr = softmax_lse_accum + b * lse_stride_b + h * lse_stride_h + m * lse_stride_m; // increment will traverse split index
+            const float* lse_accum_ptr = softmax_lse_accum + b * lse_accum_stride_b + h * lse_accum_stride_h + m * lse_accum_stride_m; // increment will traverse split index
 
             // compute max value across splits in softmax_lse_accum
             const float neg_inf = -std::numeric_limits<float>::infinity();
@@ -49,9 +50,11 @@ namespace FLASH_NAMESPACE {
                 max_val = fmaxf(max_val, lse_accum_ptr[s * lse_stride_split]);
             }
 
-            scalar_t* out_ptr = out + b * out_stride_b + h * out_stride_h + m * out_stride_m;
+            scalar_t* out_ptr = out + b * out_stride_b + m * out_stride_m + h * out_stride_h;
+            float* lse_out_ptr = softmax_lse + b * lse_stride_b + h * lse_stride_h + m * lse_stride_m;
+
             if (max_val == neg_inf) {
-                softmax_lse[b * out_stride_b + h * out_stride_h + m * out_stride_m] = max_val;
+                *lse_out_ptr = max_val;
                 for (int d = 0; d < head_size; ++d) {
                     out_ptr[d] = to_scalar<scalar_t>(0.f);
                 }
@@ -65,7 +68,7 @@ namespace FLASH_NAMESPACE {
             }
             const float total_lse = logf(sum_exp) + max_val; // = log(sum of partial sums)
             const float inv_sum = 1.f / sum_exp;
-            softmax_lse[b * out_stride_b + h * out_stride_h + m * out_stride_m] = total_lse;
+            *lse_out_ptr = total_lse;
 
             const float* accum_ptr = out_accum + b * accum_stride_b + h * accum_stride_h + m * accum_stride_m;
 
@@ -126,9 +129,10 @@ namespace FLASH_NAMESPACE {
                     out.data_ptr<scalar_t>(), out_accum.data_ptr<float>(),
                     softmax_lse.data_ptr<float>(), softmax_lse_accum.data_ptr<float>(),
                     num_splits, batch, num_heads, seqlen_q, head_size, head_size_accum,
-                    out.stride(0), out.stride(1), out.stride(2),
+                    out.stride(0), out.stride(2), out.stride(1),
                     out_accum.stride(0), out_accum.stride(1), out_accum.stride(2), out_accum.stride(3), out_accum.stride(4),
-                    softmax_lse_accum.stride(0), softmax_lse_accum.stride(1), softmax_lse_accum.stride(2), softmax_lse_accum.stride(3)
+                    softmax_lse_accum.stride(0), softmax_lse_accum.stride(1), softmax_lse_accum.stride(2), softmax_lse_accum.stride(3),
+                    softmax_lse.stride(0), softmax_lse.stride(1), softmax_lse.stride(2)
                 );
             }
         );
