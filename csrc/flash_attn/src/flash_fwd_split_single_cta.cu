@@ -47,7 +47,7 @@ namespace FLASH_NAMESPACE {
             const float neg_inf = -std::numeric_limits<float>::infinity();
             float max_val = neg_inf;
             for (int s = 0; s < num_splits; ++s) {
-                max_val = fmaxf(max_val, lse_accum_ptr[s * lse_stride_split]);
+                max_val = fmaxf(max_val, lse_accum_ptr[s * lse_accum_stride_split]);
             }
 
             scalar_t* out_ptr = out + b * out_stride_b + m * out_stride_m + h * out_stride_h;
@@ -64,7 +64,7 @@ namespace FLASH_NAMESPACE {
             // reduce total sum across splits from softmax_lse_accum to store in softmax_lse
             float sum_exp = 0.f;
             for (int s = 0; s < num_splits; ++s) {
-                sum_exp += expf(lse_accum_ptr[s * lse_stride_split] - max_val); // += partial_sum_split / exp(max_val)
+                sum_exp += expf(lse_accum_ptr[s * lse_accum_stride_split] - max_val); // += partial_sum_split / exp(max_val)
             }
             const float total_lse = logf(sum_exp) + max_val; // = log(sum of partial sums)
             const float inv_sum = 1.f / sum_exp;
@@ -78,7 +78,7 @@ namespace FLASH_NAMESPACE {
             for (int d = 0; d < head_size; ++d) {
                 float acc = 0.f;
                 for (int s = 0; s < num_splits; ++s) {
-                    const float weight = expf(lse_accum_ptr[s * lse_stride_split] - max_val) * inv_sum; // partial_sum_split / sum of partial sums
+                    const float weight = expf(lse_accum_ptr[s * lse_accum_stride_split] - max_val) * inv_sum; // partial_sum_split / sum of partial sums
                     const float value = accum_ptr[s * accum_stride_split + d * accum_stride_d];
                     acc += weight * value;
                 }
@@ -90,7 +90,7 @@ namespace FLASH_NAMESPACE {
     void run_splitkv_single_cta_combine(
         const at::Tensor& out_accum, // float [num_splits, batch, num_heads, seqlen_q, head_dim_round]
         const at::Tensor& softmax_lse_accum, // [num_splits, batch, num_heads, seqlen_q]
-        at::Tensor& out, // attn @ V [batch, num_heads, seqlen_q, head_dim]
+        at::Tensor& out, // attn @ V [batch, seqlen_q, num_heads, head_dim]
         at::Tensor& softmax_lse // [batch, num_heads, seqlen_q]
     ) {
         TORCH_CHECK(out_accum.is_cuda(), "out_accum must be on CUDA");
@@ -129,7 +129,7 @@ namespace FLASH_NAMESPACE {
                     out.data_ptr<scalar_t>(), out_accum.data_ptr<float>(),
                     softmax_lse.data_ptr<float>(), softmax_lse_accum.data_ptr<float>(),
                     num_splits, batch, num_heads, seqlen_q, head_size, head_size_accum,
-                    out.stride(0), out.stride(2), out.stride(1),
+                    out.stride(0), out.stride(1), out.stride(2),
                     out_accum.stride(0), out_accum.stride(1), out_accum.stride(2), out_accum.stride(3), out_accum.stride(4),
                     softmax_lse_accum.stride(0), softmax_lse_accum.stride(1), softmax_lse_accum.stride(2), softmax_lse_accum.stride(3),
                     softmax_lse.stride(0), softmax_lse.stride(1), softmax_lse.stride(2)
