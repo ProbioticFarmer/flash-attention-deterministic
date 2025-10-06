@@ -253,7 +253,7 @@ void run_mha_fwd(Flash_fwd_params &params, cudaStream_t stream, bool force_split
     if (const char* env = std::getenv("FA2_DETERMINISTIC")) {
         fa2_det = (std::string(env) == "1");
     }
-    
+
     FP16_SWITCH(!params.is_bf16, [&] {
         if (fa2_det) {
             std::cout << "[flash-attn] run_mha_fwd: num_splits=" << params.num_splits
@@ -355,12 +355,12 @@ std::tuple<at::Tensor, at::Tensor> set_params_splitkv(Flash_fwd_params &params, 
 
     if (fa2_det) {
         std::cout << "[flash-attn] set_params_splitkv: "
-                  << "B=" << batch_size
-                  << "S_k=" << max_seqlen_k
-                  << "S_q=" << max_seqlen_q
-                  << "n_blocks" << num_n_blocks
-                  << "num_splits=" << params.num_splits
-                  << "fixed_tokens=" << fixed_split_tokens << "\n";
+                  << " B=" << batch_size
+                  << " S_k=" << max_seqlen_k
+                  << " S_q=" << max_seqlen_q
+                  << " n_blocks" << num_n_blocks
+                  << " num_splits=" << params.num_splits
+                  << " fixed_tokens=" << fixed_split_tokens << "\n";
     }
 
     if (p_dropout == 0.0f) {  // SplitKV is not implemented for dropout
