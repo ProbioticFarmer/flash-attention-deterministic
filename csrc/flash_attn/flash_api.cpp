@@ -249,6 +249,11 @@ void set_params_dgrad(Flash_bwd_params &params,
 }
 
 void run_mha_fwd(Flash_fwd_params &params, cudaStream_t stream, bool force_split_kernel=false) {
+    bool fa2_det = false;
+    if (const char* env = std::getenv("FA2_DETERMINISTIC")) {
+        fa2_det = (std::string(env) == "1");
+    }
+    
     FP16_SWITCH(!params.is_bf16, [&] {
         if (fa2_det) {
             std::cout << "[flash-attn] run_mha_fwd: num_splits=" << params.num_splits
