@@ -12,7 +12,7 @@ Post-training AI systems (RLHF, alignment, fine-tuning) require **deterministic*
 - Debugging training instabilities
 - Meeting compliance requirements for model auditing
 
-Standard Flash Attention is fast but non-deterministic. Previous attempts to add determinism (like [RiddleHe's implementation](https://github.com/RiddleHe/flash-attention-deterministic)) destroyed GPU parallelism, resulting in **100-200x slowdowns** that made them unusable in production.
+Standard Flash Attention is fast but non-deterministic. Achieving determinism while maintaining GPU parallelism has been a significant challenge for the community.
 
 ## The Solution
 
@@ -36,9 +36,9 @@ This implementation provides:
 - Result: **1 unique output** (perfect determinism)
 
 **Performance:**
-- Overhead: ~1.2x slower than standard Flash Attention
-- GPU Utilization: 95% (vs RiddleHe's 0.9%)
-- **83-166x faster** than single-CTA serialized approaches
+- Overhead: ~15-20% slower than standard Flash Attention
+- GPU Utilization: Maintains ~95% parallelism
+- Production-ready for real-world use cases
 
 ## Quick Start
 
@@ -108,17 +108,15 @@ return _flash_attn_func_base(
 
 ### Comparison to Other Approaches
 
-| Metric | Standard FA | RiddleHe | **This Solution** |
-|--------|------------|----------|-------------------|
-| **Batch Invariant** | ❌ | ✅ | ✅ |
-| **Deterministic** | ❌ | ✅ | ✅ |
-| **Performance** | 1.0x | 0.005-0.01x | **0.80-0.85x** |
-| **GPU Utilization** | 95% | 0.9% (1 SM) | **95% (102 SMs)** |
-| **Production Ready** | ✅ | ❌ | **✅** |
+| Metric | Standard FA | **This Solution** |
+|--------|------------|-------------------|
+| **Batch Invariant** | ❌ | ✅ |
+| **Deterministic** | ❌ | ✅ |
+| **Performance** | 1.0x | **~0.85x** |
+| **GPU Utilization** | ~95% | **~95%** |
+| **Production Ready** | ✅ | **✅** |
 
-**Why RiddleHe's approach failed:** Using a single-CTA (single GPU thread block) serial reduction forces all computation through 1 of 108 streaming multiprocessors on an A100. This achieves determinism by eliminating parallelism entirely—making Flash Attention slower than the naive attention implementation it was designed to replace.
-
-**Why this approach works:** Leverages Flash Attention 2's built-in deterministic backward pass (contributed by Meituan) while maintaining the parallel forward pass architecture. The forward pass is already deterministic by design; we just needed to activate the deterministic backward pass properly.
+**How this works:** Leverages Flash Attention 2's built-in deterministic backward pass (contributed by Meituan engineers in v2.4.1+) while maintaining the parallel forward pass architecture. The forward pass is already deterministic by design; this implementation properly activates the deterministic backward pass that was already available in the codebase.
 
 ## Use Cases
 
