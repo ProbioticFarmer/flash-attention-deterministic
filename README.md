@@ -223,8 +223,6 @@ All patches available in `patches/` directory.
 3. ❌ Jupyter notebooks suppressing C++ stdout
 4. ✅ Final solution: Correct layout + explicit `split_size` parameter
 
-**Thanks to Claude (Sonnet 4.5) for the patient debugging sessions!**
-
 We're publishing this with full commit history (including missteps) because:
 - Transparency matters
 - Others can learn from our mistakes
