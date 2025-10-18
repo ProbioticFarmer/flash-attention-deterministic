@@ -369,8 +369,9 @@ std::tuple<at::Tensor, at::Tensor> set_params_splitkv(Flash_fwd_params &params, 
             params.num_splits = num_splits_heuristic(batch_size * num_heads * num_m_blocks, num_sm * 2, num_n_blocks, 128);
         }
         if (params.num_splits > 1) {
-            softmax_lse_accum = torch::empty({params.num_splits, batch_size, num_heads, max_seqlen_q}, opts.dtype(at::kFloat));
-            out_accum = torch::empty({params.num_splits, batch_size, num_heads, max_seqlen_q, head_size_rounded}, opts.dtype(at::kFloat));
+            // Kernel writes with flattened (num_splits * batch) dimension
+            softmax_lse_accum = torch::empty({params.num_splits * batch_size, num_heads, max_seqlen_q}, opts.dtype(at::kFloat));
+            out_accum = torch::empty({params.num_splits * batch_size, num_heads, max_seqlen_q, head_size_rounded}, opts.dtype(at::kFloat));
             params.softmax_lseaccum_ptr = softmax_lse_accum.data_ptr();
             params.oaccum_ptr = out_accum.data_ptr();
         }
@@ -573,6 +574,11 @@ mha_fwd(at::Tensor &q,         // batch_size x seqlen_q x num_heads x round_mult
         // TML-style deterministic parallel reduction using PyTorch ops
         // These operations are deterministic when executed in fixed order on same device
         if (out_accum.defined() && softmax_lse_accum.defined()) {
+            // Reshape from flattened (num_splits * batch, heads, seqlen, headdim)
+            // to (num_splits, batch, heads, seqlen, headdim)
+            softmax_lse_accum = softmax_lse_accum.view({params.num_splits, batch_size, num_heads, seqlen_q});
+            out_accum = out_accum.view({params.num_splits, batch_size, num_heads, seqlen_q, head_size});
+
             at::Tensor lse_total = at::logsumexp(softmax_lse_accum, 0);
             softmax_lse.copy_(lse_total);
             at::Tensor weights = at::exp(softmax_lse_accum - lse_total.unsqueeze(0));
@@ -834,6 +840,11 @@ mha_varlen_fwd(at::Tensor &q,  // total_q x num_heads x head_size, total_q := \s
         // TML-style deterministic parallel reduction using PyTorch ops
         // These operations are deterministic when executed in fixed order on same device
         if (out_accum.defined() && softmax_lse_accum.defined()) {
+            // Reshape from flattened (num_splits * batch, heads, seqlen, headdim)
+            // to (num_splits, batch, heads, seqlen, headdim)
+            softmax_lse_accum = softmax_lse_accum.view({params.num_splits, batch_size, num_heads, seqlen_q});
+            out_accum = out_accum.view({params.num_splits, batch_size, num_heads, seqlen_q, head_size});
+
             at::Tensor lse_total = at::logsumexp(softmax_lse_accum, 0);
             softmax_lse.copy_(lse_total);
             at::Tensor weights = at::exp(softmax_lse_accum - lse_total.unsqueeze(0));
@@ -1568,6 +1579,11 @@ mha_fwd_kvcache(at::Tensor &q,                 // batch_size x seqlen_q x num_he
         // TML-style deterministic parallel reduction using PyTorch ops
         // These operations are deterministic when executed in fixed order on same device
         if (out_accum.defined() && softmax_lse_accum.defined()) {
+            // Reshape from flattened (num_splits * batch, heads, seqlen, headdim)
+            // to (num_splits, batch, heads, seqlen, headdim)
+            softmax_lse_accum = softmax_lse_accum.view({params.num_splits, batch_size, num_heads, seqlen_q});
+            out_accum = out_accum.view({params.num_splits, batch_size, num_heads, seqlen_q, head_size});
+
             at::Tensor lse_total = at::logsumexp(softmax_lse_accum, 0);
             softmax_lse.copy_(lse_total);
             at::Tensor weights = at::exp(softmax_lse_accum - lse_total.unsqueeze(0));
