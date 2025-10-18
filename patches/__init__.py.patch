@@ -1,0 +1,10 @@
+diff --git a/flash_attn/__init__.py b/flash_attn/__init__.py
+index 4a8a7c3..57c76f0 100644
+--- a/flash_attn/__init__.py
++++ b/flash_attn/__init__.py
+@@ -9,3 +9,5 @@ from flash_attn.flash_attn_interface import (
+     flash_attn_varlen_qkvpacked_func,
+     flash_attn_with_kvcache,
+ )
++
++from .determinism import set_deterministic_mode, get_deterministic_mode
