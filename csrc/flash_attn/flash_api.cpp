@@ -842,8 +842,8 @@ mha_varlen_fwd(at::Tensor &q,  // total_q x num_heads x head_size, total_q := \s
         if (out_accum.defined() && softmax_lse_accum.defined()) {
             // Reshape from flattened (num_splits * batch, heads, seqlen, headdim)
             // to (num_splits, batch, heads, seqlen, headdim)
-            softmax_lse_accum = softmax_lse_accum.view({params.num_splits, batch_size, num_heads, seqlen_q});
-            out_accum = out_accum.view({params.num_splits, batch_size, num_heads, seqlen_q, head_size});
+            softmax_lse_accum = softmax_lse_accum.view({params.num_splits, batch_size, num_heads, max_seqlen_q});
+            out_accum = out_accum.view({params.num_splits, batch_size, num_heads, max_seqlen_q, head_size});
 
             at::Tensor lse_total = at::logsumexp(softmax_lse_accum, 0);
             softmax_lse.copy_(lse_total);
